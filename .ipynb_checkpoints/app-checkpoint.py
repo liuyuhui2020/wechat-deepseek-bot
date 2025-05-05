@@ -82,7 +82,7 @@ def call_deepseek(user_input):
         resp = session.post(url, headers=headers, json=payload, timeout=180)
         data = resp.json()
         return data["choices"][0]["message"]["content"]
-     except Exception as e:
+    except Exception as e:
         print("调用 DeepSeek 出错：", str(e))
         return "出错了，请稍后再试～"
 
