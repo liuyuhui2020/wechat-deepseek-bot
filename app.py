@@ -1,54 +1,75 @@
 # app.py
-
-from flask import Flask, request, make_response
 import hashlib
 import xml.etree.ElementTree as ET
-from deepseek import ask_deepseek
-from config import TOKEN
+from flask import Flask, request, make_response
+import requests
+import os
 
 app = Flask(__name__)
 
-@app.route('/wechat', methods=['GET', 'POST'])
+# 从环境变量中读取
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
+TOKEN = os.environ.get("TOKEN")
+
+
+@app.route("/", methods=["GET", "POST"])
 def wechat():
-    if request.method == 'GET':
-        # 微信公众号接口验证
-        signature = request.args.get('signature', '')
-        timestamp = request.args.get('timestamp', '')
-        nonce = request.args.get('nonce', '')
-        echostr = request.args.get('echostr', '')
+    if request.method == "GET":
+        # 验证服务器（微信公众号配置服务器地址时使用）
+        token = TOKEN  # 与微信公众平台设置保持一致
+        query = request.args
+        signature = query.get('signature', '')
+        timestamp = query.get('timestamp', '')
+        nonce = query.get('nonce', '')
+        echostr = query.get('echostr', '')
 
-        tmp = [TOKEN, timestamp, nonce]
-        tmp.sort()
-        tmp_str = ''.join(tmp)
-        hashcode = hashlib.sha1(tmp_str.encode('utf-8')).hexdigest()
-
-        if hashcode == signature:
+        s = ''.join(sorted([token, timestamp, nonce]))
+        if hashlib.sha1(s.encode('utf-8')).hexdigest() == signature:
             return echostr
         else:
-            return "验证失败"
+            return "Invalid signature"
     
-    elif request.method == 'POST':
-        # 接收消息并自动回复
+    if request.method == "POST":
+        # 接收微信用户消息并响应
         xml_data = request.data
         xml = ET.fromstring(xml_data)
-        to_user = xml.find('ToUserName').text
-        from_user = xml.find('FromUserName').text
-        content = xml.find('Content').text if xml.find('Content') is not None else "你好"
+        to_user = xml.find('FromUserName').text
+        from_user = xml.find('ToUserName').text
+        content = xml.find('Content').text
 
-        reply = ask_deepseek(content)
+        # 调用 DeepSeek 接口
+        reply = call_deepseek(content)
 
         response = f"""
         <xml>
-          <ToUserName><![CDATA[{from_user}]]></ToUserName>
-          <FromUserName><![CDATA[{to_user}]]></FromUserName>
+          <ToUserName><![CDATA[{to_user}]]></ToUserName>
+          <FromUserName><![CDATA[{from_user}]]></FromUserName>
           <CreateTime>{int(time.time())}</CreateTime>
           <MsgType><![CDATA[text]]></MsgType>
           <Content><![CDATA[{reply}]]></Content>
         </xml>
         """
-
         return make_response(response)
 
-if __name__ == '__main__':
-    import time
-    app.run(host='0.0.0.0', port=8000)
+def call_deepseek(user_input):
+    url = "https://api.deepseek.com/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "deepseek-chat",
+        "messages": [
+            {"role": "user", "content": user_input}
+        ]
+    }
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=10)
+        data = resp.json()
+        return data["choices"][0]["message"]["content"]
+    except Exception as e:
+        return "出错了，请稍后再试～"
+
+import time
+if __name__ == "__main__":
+    app.run(debug=True)

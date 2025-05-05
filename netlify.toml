@@ -1,4 +1,0 @@
-[build]
-  command = "mkdir -p netlify/functions && pip install -r requirements.txt && cp app.py netlify/functions/wechat.py"  # 确保目录存在
-  publish = "."
-  functions = "netlify/functions"  # 确保路径正确
