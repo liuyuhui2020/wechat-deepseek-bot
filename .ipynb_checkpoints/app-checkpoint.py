@@ -22,7 +22,7 @@ APP_ID = os.getenv('WECHAT_APPID')
 APP_SECRET = os.getenv('WECHAT_APPSECRET')
 DEEPSEEK_API_KEY = os.getenv('DEEPSEEK_API_KEY')
 
-@app.route('/wechat', methods=['GET', 'POST', 'HEAD'])
+@app.route('/', methods=['GET', 'POST', 'HEAD'])
 def wechat():
     """核心处理逻辑"""
     # 记录请求基本信息
