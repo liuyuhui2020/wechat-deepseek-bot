@@ -11,7 +11,7 @@ app = Flask(__name__)
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 
 
-@app.route("/", methods=["GET", "POST"])
+@app.route("/", methods=["GET", "POST", "HEAD"])
 def wechat():
     if request.method == "GET":
         # 验证服务器（微信公众号配置服务器地址时使用）
