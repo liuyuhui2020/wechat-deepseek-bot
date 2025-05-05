@@ -71,7 +71,7 @@ def wechat():
                         "model": "deepseek-chat",
                         "temperature": 0.7
                     },
-                    timeout=10
+                    timeout=30
                 )
                 logger.info(f"DeepSeek API response status: {response.status_code}")
 
