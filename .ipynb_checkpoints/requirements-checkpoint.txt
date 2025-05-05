@@ -1,4 +1,4 @@
 Flask==3.0.2
-wechatpy==3.0.0
+wechatpy==1.8.18  # 改为实际存在的稳定版本
 requests==2.31.0
 gunicorn==21.2.0
