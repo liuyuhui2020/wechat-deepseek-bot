@@ -2,6 +2,8 @@ import hashlib
 import xml.etree.ElementTree as ET
 from flask import Flask, request, Response
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import os
 import time
 
