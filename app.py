@@ -16,14 +16,14 @@ TOKEN = os.environ.get("TOKEN")
 def wechat():
     if request.method == "GET":
         # 验证服务器（微信公众号配置服务器地址时使用）
-        token = TOKEN  # 与微信公众平台设置保持一致
         query = request.args
         signature = query.get('signature', '')
         timestamp = query.get('timestamp', '')
         nonce = query.get('nonce', '')
         echostr = query.get('echostr', '')
 
-        s = ''.join(sorted([token, timestamp, nonce]))
+        s = ''.join(sorted([TOKEN, timestamp, nonce]))
+        logging.info(f"Received GET with echostr: {echostr}, timestamp: {timestamp}, nonce: {nonce}, signature: {signature}")
         if hashlib.sha1(s.encode('utf-8')).hexdigest() == signature:
             return echostr
         else:
