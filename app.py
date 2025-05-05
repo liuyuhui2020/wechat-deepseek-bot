@@ -1,6 +1,6 @@
 import hashlib
 import xml.etree.ElementTree as ET
-from flask import Flask, request, Response, make_response
+from flask import Flask, request, make_response
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -8,29 +8,41 @@ import os
 import time
 import threading
 import logging
-from wechatpy import WeChatClient
-from wechatpy.crypto import WeChatCrypto
-from wechatpy.exceptions import InvalidSignatureException
+
+# 微信相关库动态导入（兼容测试号）
+try:
+    from wechatpy import WeChatClient
+    from wechatpy.crypto import WeChatCrypto
+    from wechatpy.exceptions import InvalidSignatureException
+except ImportError:
+    pass
 
 app = Flask(__name__)
 
-# 初始化日志
+# 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # 从环境变量读取配置
-WECHAT_TOKEN = os.environ.get("WECHAT_TOKEN", "mywechat123token")
-WECHAT_APPID = os.environ.get("WECHAT_APPID")
-WECHAT_SECRET = os.environ.get("WECHAT_SECRET")
-ENCODING_AES_KEY = os.environ.get("ENCODING_AES_KEY")
-DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
+WECHAT_TOKEN = os.environ.get("WECHAT_TOKEN", "your_default_token")
+WECHAT_APPID = os.environ.get("WECHAT_APPID", "")
+WECHAT_SECRET = os.environ.get("WECHAT_SECRET", "")
+ENCODING_AES_KEY = os.environ.get("ENCODING_AES_KEY", "")
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
 
-# 初始化微信客户端
-crypto = WeChatCrypto(WECHAT_TOKEN, ENCODING_AES_KEY, WECHAT_APPID)
-wx_client = WeChatClient(WECHAT_APPID, WECHAT_SECRET)
+# 初始化微信客户端（兼容测试号）
+wx_client = None
+crypto = None
+if WECHAT_APPID and WECHAT_SECRET:
+    try:
+        wx_client = WeChatClient(WECHAT_APPID, WECHAT_SECRET)
+        if ENCODING_AES_KEY:
+            crypto = WeChatCrypto(WECHAT_TOKEN, ENCODING_AES_KEY, WECHAT_APPID)
+    except NameError:
+        logger.warning("微信SDK未正确安装，消息加解密功能不可用")
 
 def build_xml_response(to_user, from_user, content):
-    """构建符合微信要求的XML响应"""
+    """构建微信XML响应"""
     xml = ET.Element('xml')
     ET.SubElement(xml, 'ToUserName').text = f'<![CDATA[{to_user}]]>'
     ET.SubElement(xml, 'FromUserName').text = f'<![CDATA[{from_user}]]>'
@@ -44,26 +56,21 @@ def build_xml_response(to_user, from_user, content):
     return response
 
 def async_reply(to_user, content):
-    """异步处理消息并发送客服消息"""
+    """异步处理消息"""
     try:
-        logger.info(f"开始处理异步请求，用户：{to_user}")
-        
-        # 调用DeepSeek API
+        logger.info(f"处理用户消息：{to_user}")
         reply = call_deepseek(content)
-        logger.info(f"DeepSeek回复内容：{reply[:50]}...")  # 截取部分内容避免日志过大
+        logger.info(f"生成回复：{reply[:50]}...")
         
-        # 发送客服消息
-        wx_client.message.send_text(to_user, reply)
-        logger.info("客服消息发送成功")
+        if wx_client:
+            wx_client.message.send_text(to_user, reply)
+        else:
+            logger.warning("未配置微信客户端，无法发送客服消息")
     except Exception as e:
         logger.error(f"异步处理失败：{str(e)}")
-        try:
-            wx_client.message.send_text(to_user, "服务暂时不可用，请稍后重试")
-        except Exception as inner_e:
-            logger.error(f"发送错误消息失败：{str(inner_e)}")
 
 def call_deepseek(user_input):
-    """调用DeepSeek API（带超时控制）"""
+    """调用DeepSeek API"""
     url = "https://api.deepseek.com/chat/completions"
     headers = {
         "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
@@ -83,27 +90,19 @@ def call_deepseek(user_input):
             allowed_methods=["POST"]
         )
         session.mount('https://', HTTPAdapter(max_retries=retries))
-        
-        # 设置合理超时（连接3秒，读取15秒）
         resp = session.post(url, headers=headers, json=payload, timeout=(3, 15))
         resp.raise_for_status()
-        
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+        return resp.json()["choices"][0]["message"]["content"]
     except requests.exceptions.Timeout:
-        logger.warning("DeepSeek API请求超时")
         return "请求超时，请稍后重试"
-    except KeyError:
-        logger.error("API响应格式异常")
-        return "服务响应异常，请稍后再试"
     except Exception as e:
         logger.error(f"API调用失败：{str(e)}")
-        return "服务暂时不可用，请稍后再试"
+        return "服务暂时不可用"
 
 @app.route("/", methods=["GET", "POST", "HEAD"])
 def wechat():
     if request.method == "GET":
-        # 微信服务器验证
+        # 微信验证
         signature = request.args.get('signature', '')
         timestamp = request.args.get('timestamp', '')
         nonce = request.args.get('nonce', '')
@@ -111,48 +110,43 @@ def wechat():
 
         s = ''.join(sorted([WECHAT_TOKEN, timestamp, nonce]))
         if hashlib.sha1(s.encode()).hexdigest() == signature:
-            logger.info("微信验证成功")
             return echostr
-        logger.warning("微信验证失败")
-        return "Invalid signature"
+        return "验证失败"
 
     elif request.method == "POST":
         try:
-            # 测试号使用明文模式，无需解密
-            if ENCODING_AES_KEY:  # 正式环境
-                encrypted_xml = request.data
+            # 消息处理
+            raw_data = request.data
+            xml = None
+            
+            if crypto:
+                # 正式环境解密
                 timestamp = request.args.get('timestamp')
                 nonce = request.args.get('nonce')
                 msg_signature = request.args.get('msg_signature')
-                decrypted_xml = crypto.decrypt_message(encrypted_xml, msg_signature, timestamp, nonce)
+                decrypted_xml = crypto.decrypt_message(
+                    raw_data,
+                    msg_signature,
+                    timestamp,
+                    nonce
+                )
                 xml = ET.fromstring(decrypted_xml)
-            else:  # 测试号环境
-                xml = ET.fromstring(request.data)  # 直接解析明文XML
-            
-            # 解析消息
+            else:
+                # 测试号明文处理
+                xml = ET.fromstring(raw_data)
+
             to_user = xml.find('FromUserName').text
             from_user = xml.find('ToUserName').text
-            content = xml.find('Content').text.strip() if xml.find('Content') is not None else ""
-            
-            logger.info(f"收到消息 - 用户：{to_user}，内容：{content[:50]}...")
+            content = xml.find('Content').text.strip() if xml.find('Content') else ""
 
-            # 立即返回空响应
-            response = build_xml_response(to_user, from_user, "")
-            
             # 启动异步处理
-            threading.Thread(
-                target=async_reply,
-                args=(to_user, content),
-                daemon=True
-            ).start()
+            threading.Thread(target=async_reply, args=(to_user, content)).start()
             
-            return response
+            # 立即返回空响应
+            return build_xml_response(to_user, from_user, "")
 
-        except InvalidSignatureException:
-            logger.error("签名验证失败")
-            return "Invalid signature", 403
         except Exception as e:
-            logger.error(f"消息处理异常：{str(e)}")
+            logger.error(f"处理异常：{str(e)}")
             return build_xml_response("", "", "系统错误"), 500
 
     elif request.method == "HEAD":
