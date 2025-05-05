@@ -1,4 +1,5 @@
 flask==2.0.3
+werkzeug==2.0.3  # 明确指定兼容版本
 requests==2.31.0
 gunicorn==20.1.0
 wechatpy==1.8.16
