@@ -76,10 +76,13 @@ def call_deepseek(user_input):
         ]
     }
     try:
-        resp = requests.post(url, headers=headers, json=payload, timeout=10)
+        session = requests.Session()
+        retries = Retry(total=3, backoff_factor=2, status_forcelist=[429, 502, 503, 504])
+        session.mount('https://', HTTPAdapter(max_retries=retries))
+        resp = session.post(url, headers=headers, json=payload, timeout=180)
         data = resp.json()
         return data["choices"][0]["message"]["content"]
-    except Exception as e:
+     except Exception as e:
         print("调用 DeepSeek 出错：", str(e))
         return "出错了，请稍后再试～"
 
