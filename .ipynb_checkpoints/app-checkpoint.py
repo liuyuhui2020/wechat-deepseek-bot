@@ -54,7 +54,7 @@ def wechat():
   <Content><![CDATA[{reply}]]></Content>
 </xml>
 """
-            return Response(response, content_type='text/xml')
+            return Response(response, content_type='application/xml')
 
         except Exception as e:
             print("处理消息出错：", str(e))
