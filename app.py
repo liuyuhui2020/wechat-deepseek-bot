@@ -2,6 +2,8 @@ from flask import Flask, request, abort, Response
 from wechatpy import parse_message, create_reply, WeChatClient
 from wechatpy.utils import check_signature
 from wechatpy.exceptions import InvalidSignatureException
+from urllib3.util.retry import Retry 
+from requests.adapters import HTTPAdapter  
 import requests
 import os
 import logging

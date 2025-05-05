@@ -4,3 +4,4 @@ cryptography==42.0.5  # 新增核心加密依赖
 requests==2.31.0
 gunicorn==21.2.0
 Werkzeug==3.0.1  # 明确指定Flask依赖版本
+urllib3>=1.26.12
