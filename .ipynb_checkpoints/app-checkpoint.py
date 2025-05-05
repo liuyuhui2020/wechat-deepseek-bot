@@ -29,7 +29,7 @@ def wechat():
         else:
             return "Invalid signature"
     
-    if request.method == "POST":
+    elif request.method == "POST":
         # 接收微信用户消息并响应
         xml_data = request.data
         xml = ET.fromstring(xml_data)
