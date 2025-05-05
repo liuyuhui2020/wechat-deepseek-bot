@@ -50,8 +50,8 @@ def wechat():
         </xml>
         """
         return make_response(response)
-        
-     elif request.method == "HEAD":
+    
+    elif request.method == "HEAD":
         # Render 或微信可能会发送 HEAD 请求探测服务
         return '', 200
 
