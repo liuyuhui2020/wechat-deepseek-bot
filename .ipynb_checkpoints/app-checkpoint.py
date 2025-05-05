@@ -9,21 +9,21 @@ app = Flask(__name__)
 
 # 从环境变量中读取
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
-TOKEN = os.environ.get("TOKEN")
 
 
 @app.route("/", methods=["GET", "POST"])
 def wechat():
     if request.method == "GET":
         # 验证服务器（微信公众号配置服务器地址时使用）
+        token = 'mywechat123token'  # 与微信公众平台设置保持一致
         query = request.args
         signature = query.get('signature', '')
         timestamp = query.get('timestamp', '')
         nonce = query.get('nonce', '')
         echostr = query.get('echostr', '')
 
-        s = ''.join(sorted([TOKEN, timestamp, nonce]))
-        logging.info(f"Received GET with echostr: {echostr}, timestamp: {timestamp}, nonce: {nonce}, signature: {signature}")
+        s = ''.join(sorted([token, timestamp, nonce]))
+        
         if hashlib.sha1(s.encode('utf-8')).hexdigest() == signature:
             return echostr
         else:
