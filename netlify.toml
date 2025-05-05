@@ -1,0 +1,9 @@
+[build]
+  command = "pip install -r requirements.txt"
+  publish = "."
+  functions = "."
+
+[[redirects]]
+  from = "/wechat"
+  to = "/.netlify/functions/wechat"
+  status = 200
